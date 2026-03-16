@@ -1,0 +1,143 @@
+{
+  "name": "Alert Signals",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "triggerAtHour": 10
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        0,
+        0
+      ],
+      "id": "ff58d383-cae8-428c-b65c-eeff63f7cee0",
+      "name": "Schedule Trigger"
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1m9eYezyHRwoRuTJHQqDx_fT9X58JPSeodyvReWjpsLU",
+          "mode": "list",
+          "cachedResultName": "client_health_score_mockdata",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1m9eYezyHRwoRuTJHQqDx_fT9X58JPSeodyvReWjpsLU/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 6749424,
+          "mode": "list",
+          "cachedResultName": "scores_daily",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1m9eYezyHRwoRuTJHQqDx_fT9X58JPSeodyvReWjpsLU/edit#gid=6749424"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        208,
+        0
+      ],
+      "id": "3ff6bb38-8c59-4c2a-a214-3167421311a8",
+      "name": "Check scores",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "8o8P21qydRJ4ZVTE",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const rows = $input.all().map(i => i.json);\n\n// Get today's scores only\nconst today = new Date().toISOString().slice(0, 10);\nconst todayRows = rows.filter(r => r.date === today);\n\nconst alerts = [];\n\nfor (const row of todayRows) {\n  const score = parseFloat(row.total_score);\n  const rag = row.rag_status;\n\n  // Only alert on Amber and Red\n  if (rag.includes('Green')) continue;\n\n  const urgency = rag.includes('Red') ? '🔴 CRITICAL' : '🟡 WATCH';\n  const action = rag.includes('Red')\n    ? 'Immediate outreach required. Prepare save plan.'\n    : 'Schedule a check-in call this week.';\n\n  alerts.push({\n    json: {\n      client_name:      row.client_name,\n      total_score:      score,\n      rag_status:       rag,\n      top_risk_signal:  row.top_risk_signal,\n      urgency:          urgency,\n      action:           action,\n      message: `${urgency}\\n\\nClient: ${row.client_name}\\nScore: ${score}/100 ${rag}\\nTop Risk: ${row.top_risk_signal}\\n\\n${action}`\n    }\n  });\n}\n\n// If no alerts, return a clean all-clear\nif (alerts.length === 0) {\n  return [{\n    json: { message: '✅ All clients healthy. No action required today.' }\n  }];\n}\n\nreturn alerts;\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        416,
+        0
+      ],
+      "id": "c6a4bf36-08cd-4a33-b8b2-d6a4140f3eef",
+      "name": "Transform data"
+    },
+    {
+      "parameters": {
+        "chatId": "6548373488",
+        "text": "={{ $json.message }}",
+        "additionalFields": {
+          "appendAttribution": false
+        }
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        624,
+        0
+      ],
+      "id": "2df13406-aad7-4f0a-ba64-96f7919bf0d8",
+      "name": "Send a text message",
+      "webhookId": "fabd60a4-9279-487a-8a9d-76f37d714ac9",
+      "credentials": {
+        "telegramApi": {
+          "id": "DiTWDBCeAJyj9Qel",
+          "name": "Telegram account 2"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Check scores",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check scores": {
+      "main": [
+        [
+          {
+            "node": "Transform data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Transform data": {
+      "main": [
+        [
+          {
+            "node": "Send a text message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "9048a753-016d-4db1-b7ea-8e0097a3ec3d",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "e2c9a93f8ff49d86192cf418d081c92e44d8bc4ec881d6e698a0353938e16a65"
+  },
+  "id": "s7LgyhzMxaQJW6jl",
+  "tags": []
+}

@@ -1,0 +1,270 @@
+{
+  "name": "Connector - Gmail",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "triggerAtHour": 8
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        -48,
+        -16
+      ],
+      "id": "7b7f9fb7-e45b-45a9-a8ac-0238a4bb7e1c",
+      "name": "Schedule Trigger"
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "1m9eYezyHRwoRuTJHQqDx_fT9X58JPSeodyvReWjpsLU",
+          "mode": "list",
+          "cachedResultName": "client_health_score_mockdata",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1m9eYezyHRwoRuTJHQqDx_fT9X58JPSeodyvReWjpsLU/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 715797522,
+          "mode": "list",
+          "cachedResultName": "signals_raw",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1m9eYezyHRwoRuTJHQqDx_fT9X58JPSeodyvReWjpsLU/edit#gid=715797522"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "timestamp": "={{ $json.timestamp }}",
+            "client_id": "={{ $json.client_id }}",
+            "client_name": "={{ $json.client_name }}",
+            "signal_name": "={{ $json.signal_name }}",
+            "signal_value": "={{ $json.signal_value }}",
+            "data_source": "={{ $json.data_source }}",
+            "signal_category": "={{ $json.signal_category }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "timestamp",
+              "displayName": "timestamp",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "client_id",
+              "displayName": "client_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "client_name",
+              "displayName": "client_name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "signal_name",
+              "displayName": "signal_name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "signal_value",
+              "displayName": "signal_value",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "signal_category",
+              "displayName": "signal_category",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "data_source",
+              "displayName": "data_source",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        832,
+        -16
+      ],
+      "id": "21ed661f-241f-4170-a046-a59fc479cb01",
+      "name": "Update sheet",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "8o8P21qydRJ4ZVTE",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const messages = $input.all();\nconst clientMap = $('Read Client Map').all().map(i => i.json);\n\nconst results = [];\nconst now = Date.now();\n\nfor (const msg of messages) {\n  const headers = msg.json.headers || {};\n  \n  // Strip \"From: \" prefix and extract email\n  const fromRaw = headers['from'] || \"\";\n  const emailMatch = fromRaw.match(/<(.+?)>/) || fromRaw.match(/[\\w.-]+@[\\w.-]+/);\n  const email = emailMatch ? emailMatch[1] || emailMatch[0] : null;\n  const domainMatch = email ? email.match(/@([\\w.-]+)/) : null;\n  const domain = domainMatch ? domainMatch[1].toLowerCase() : null;\n  if (!domain) continue;\n\n  // Match to client\n  const client = clientMap.find(c =>\n    domain.includes(c.email_domain.toLowerCase())\n  );\n  if (!client) continue;\n\n  // Strip \"Date: \" prefix and parse\n  const dateRaw = headers['date'] || \"\";\n  const dateClean = dateRaw.replace(/^Date:\\s*/i, \"\");\n  const msgTime = new Date(dateClean).getTime();\n  const hoursAgo = (now - msgTime) / (1000 * 60 * 60);\n\n  results.push({\n    json: {\n      timestamp: new Date().toISOString().replace(\"T\", \" \").slice(0, 19),\n      client_id: client.client_id,\n      client_name: client.client_name,\n      signal_name: \"email_response_time_hours\",\n      signal_value: parseFloat(hoursAgo.toFixed(1)),\n      signal_category: \"Communication\",\n      data_source: \"Gmail\"\n    }\n  });\n}\n\n// Missing data rows for clients with no emails\nfor (const client of clientMap) {\n  const found = results.find(r => r.json.client_id === client.client_id);\n  if (!found) {\n    results.push({\n      json: {\n        timestamp: new Date().toISOString().replace(\"T\", \" \").slice(0, 19),\n        client_id: client.client_id,\n        client_name: client.client_name,\n        signal_name: \"email_response_time_hours\",\n        signal_value: null,\n        signal_category: \"Communication\",\n        data_source: \"Gmail\"\n      }\n    });\n  }\n}\n\nreturn results;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        608,
+        -16
+      ],
+      "id": "31ee3437-02cd-4bbc-a47a-72a25491d094",
+      "name": "Transform Signal"
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "returnAll": true,
+        "simple": false,
+        "filters": {
+          "receivedAfter": "2026-03-05T00:07:59"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        384,
+        -16
+      ],
+      "id": "0a6eee33-9fc5-42c2-a4e4-20a6045e417f",
+      "name": "Check email",
+      "webhookId": "3507de34-d008-4aa1-a884-dfbf167fc534",
+      "executeOnce": true,
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "P856VXkym26ySq96",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "https://docs.google.com/spreadsheets/d/1m9eYezyHRwoRuTJHQqDx_fT9X58JPSeodyvReWjpsLU/edit?gid=192353858#gid=192353858",
+          "mode": "url"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 192353858,
+          "mode": "list",
+          "cachedResultName": "client_map",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1m9eYezyHRwoRuTJHQqDx_fT9X58JPSeodyvReWjpsLU/edit#gid=192353858"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        160,
+        -16
+      ],
+      "id": "3f0c6a95-faa1-4cc9-b807-25a5e9e0970a",
+      "name": "Read Client Map",
+      "alwaysOutputData": false,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "8o8P21qydRJ4ZVTE",
+          "name": "Google Sheets account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Read Client Map",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Transform Signal": {
+      "main": [
+        [
+          {
+            "node": "Update sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check email": {
+      "main": [
+        [
+          {
+            "node": "Transform Signal",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Client Map": {
+      "main": [
+        [
+          {
+            "node": "Check email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "0c9e8a02-1bfa-4b4f-b42f-91e95aa84979",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "e2c9a93f8ff49d86192cf418d081c92e44d8bc4ec881d6e698a0353938e16a65"
+  },
+  "id": "OWpAmcaN55TreqDo",
+  "tags": []
+}

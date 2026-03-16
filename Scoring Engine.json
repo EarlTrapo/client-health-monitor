@@ -1,0 +1,293 @@
+{
+  "name": "Scoring Engine",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "triggerAtHour": 9
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        0,
+        0
+      ],
+      "id": "8189dffc-42e3-4e1d-ad4f-b27f780e9834",
+      "name": "Schedule Trigger"
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1m9eYezyHRwoRuTJHQqDx_fT9X58JPSeodyvReWjpsLU",
+          "mode": "list",
+          "cachedResultName": "client_health_score_mockdata",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1m9eYezyHRwoRuTJHQqDx_fT9X58JPSeodyvReWjpsLU/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 715797522,
+          "mode": "list",
+          "cachedResultName": "signals_raw",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1m9eYezyHRwoRuTJHQqDx_fT9X58JPSeodyvReWjpsLU/edit#gid=715797522"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        208,
+        0
+      ],
+      "id": "391188eb-1880-42da-b0b9-e8b103ee592a",
+      "name": "Check current signals",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "8o8P21qydRJ4ZVTE",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const rows = $input.all().map(i => i.json);\n\n// ── Weights ──────────────────────────────────────────────\nconst WEIGHTS = {\n  financial:    0.25,\n  communication: 0.20,\n  engagement:   0.20,\n  sentiment:    0.20,\n  behavioral:   0.15\n};\n\n// ── Signal → category + scoring function ─────────────────\nconst SIGNAL_MAP = {\n  invoice_overdue_days: {\n    category: 'financial',\n    score: v => v <= 0 ? 100 : v <= 5 ? 70 : v <= 14 ? 40 : 10\n  },\n  email_response_time_hours: {\n    category: 'communication',\n    score: v => v === null ? 50 : v <= 4 ? 100 : v <= 24 ? 70 : v <= 48 ? 40 : 10\n  },\n  days_since_last_meeting: {\n    category: 'engagement',\n    score: v => v === null ? 50 : v <= 7 ? 100 : v <= 14 ? 70 : v <= 21 ? 40 : 10\n  },\n  support_ticket_volume: {\n    category: 'behavioral',\n    score: v => v === null ? 50 : v <= 2 ? 100 : v <= 5 ? 70 : v <= 8 ? 40 : 10\n  }\n};\n\n// ── Group rows by client ──────────────────────────────────\nconst clients = {};\nfor (const row of rows) {\n  const id = row.client_id;\n  if (!id) continue;\n  if (!clients[id]) {\n    clients[id] = { client_id: id, client_name: row.client_name, signals: {} };\n  }\n  // Keep latest signal per signal_name\n  if (SIGNAL_MAP[row.signal_name]) {\n    clients[id].signals[row.signal_name] = parseFloat(row.signal_value);\n  }\n}\n\n// ── Score each client ─────────────────────────────────────\nconst today = new Date().toISOString().slice(0, 10);\nconst results = [];\n\nfor (const client of Object.values(clients)) {\n  const scores = {};\n  const missing = [];\n\n  for (const [signal, config] of Object.entries(SIGNAL_MAP)) {\n    const val = client.signals[signal] ?? null;\n    if (val === null || isNaN(val)) {\n      scores[config.category] = scores[config.category] ?? 50;\n      missing.push(signal);\n    } else {\n      scores[config.category] = config.score(val);\n    }\n  }\n\n  // Sentiment defaults to 50 (no connector yet)\n  scores.sentiment = scores.sentiment ?? 50;\n\n  const total = Math.round(\n    (scores.financial    * WEIGHTS.financial) +\n    (scores.communication * WEIGHTS.communication) +\n    (scores.engagement   * WEIGHTS.engagement) +\n    (scores.sentiment    * WEIGHTS.sentiment) +\n    (scores.behavioral   * WEIGHTS.behavioral)\n  );\n\n  const rag = total >= 70 ? '🟢 Green' : total >= 40 ? '🟡 Amber' : '🔴 Red';\n\n  // Find worst signal\n  const worstSignal = Object.entries(scores)\n    .filter(([k]) => k !== 'sentiment')\n    .sort((a, b) => a[1] - b[1])[0][0];\n\n  results.push({\n    json: {\n      date: today,\n      client_id: client.client_id,\n      client_name: client.client_name,\n      comm_score:        scores.communication,\n      financial_score:   scores.financial,\n      engagement_score:  scores.engagement,\n      sentiment_score:   scores.sentiment,\n      behavioral_score:  scores.behavioral,\n      total_score:       total,\n      rag_status:        rag,\n      trend:             '→',\n      top_risk_signal:   worstSignal,\n      missing_data_flags: missing.join(', ') || '—'\n    }\n  });\n}\n\nreturn results;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        416,
+        0
+      ],
+      "id": "2b3f5034-20b1-4ea5-9b1e-0a8957e165ff",
+      "name": "Code in JavaScript"
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "1m9eYezyHRwoRuTJHQqDx_fT9X58JPSeodyvReWjpsLU",
+          "mode": "list",
+          "cachedResultName": "client_health_score_mockdata",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1m9eYezyHRwoRuTJHQqDx_fT9X58JPSeodyvReWjpsLU/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 6749424,
+          "mode": "list",
+          "cachedResultName": "scores_daily",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1m9eYezyHRwoRuTJHQqDx_fT9X58JPSeodyvReWjpsLU/edit#gid=6749424"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "date": "={{ $json.date }}",
+            "comm_score": "={{ $json.comm_score }}",
+            "client_name": "={{ $json.client_name }}",
+            "client_id": "={{ $json.client_id }}",
+            "missing_data_flags": "={{ $json.missing_data_flags }}",
+            "top_risk_signal": "={{ $json.top_risk_signal }}",
+            "trend": "={{ $json.trend }}",
+            "rag_status": "={{ $json.rag_status }}",
+            "total_score": "={{ $json.total_score }}",
+            "behavioral_score": "={{ $json.behavioral_score }}",
+            "sentiment_score": "={{ $json.sentiment_score }}",
+            "engagement_score": "={{ $json.engagement_score }}",
+            "financial_score": "={{ $json.financial_score }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "date",
+              "displayName": "date",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "client_id",
+              "displayName": "client_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "client_name",
+              "displayName": "client_name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "comm_score",
+              "displayName": "comm_score",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "financial_score",
+              "displayName": "financial_score",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "engagement_score",
+              "displayName": "engagement_score",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "sentiment_score",
+              "displayName": "sentiment_score",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "behavioral_score",
+              "displayName": "behavioral_score",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "total_score",
+              "displayName": "total_score",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "rag_status",
+              "displayName": "rag_status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "trend",
+              "displayName": "trend",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "top_risk_signal",
+              "displayName": "top_risk_signal",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "missing_data_flags",
+              "displayName": "missing_data_flags",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        624,
+        0
+      ],
+      "id": "493594ce-0460-41f6-9b47-0d50714209ac",
+      "name": "Update scoring sheet",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "8o8P21qydRJ4ZVTE",
+          "name": "Google Sheets account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Check current signals",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check current signals": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "Update scoring sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "35b20c7e-ec05-48c3-bf81-6786dc3a8d15",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "e2c9a93f8ff49d86192cf418d081c92e44d8bc4ec881d6e698a0353938e16a65"
+  },
+  "id": "1dtOXiqUIbusZ4uV",
+  "tags": []
+}

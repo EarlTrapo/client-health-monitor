@@ -1,0 +1,148 @@
+{
+  "name": "Weekly Alert",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "weeks",
+              "triggerAtDay": [
+                1
+              ],
+              "triggerAtHour": 8
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        0,
+        0
+      ],
+      "id": "bdcd1ded-d6e0-4c70-a49b-d2e64452d864",
+      "name": "Schedule Trigger"
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1m9eYezyHRwoRuTJHQqDx_fT9X58JPSeodyvReWjpsLU",
+          "mode": "list",
+          "cachedResultName": "client_health_score_mockdata",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1m9eYezyHRwoRuTJHQqDx_fT9X58JPSeodyvReWjpsLU/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 6749424,
+          "mode": "list",
+          "cachedResultName": "scores_daily",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1m9eYezyHRwoRuTJHQqDx_fT9X58JPSeodyvReWjpsLU/edit#gid=6749424"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        208,
+        0
+      ],
+      "id": "53377849-cfc0-44bd-b787-1dde4f31079f",
+      "name": "Get client data",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "8o8P21qydRJ4ZVTE",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const rows = $input.all().map(i => i.json);\n\n// Get most recent score per client\nconst latest = {};\nfor (const row of rows) {\n  if (!row.client_id) continue;\n  if (!latest[row.client_id] || row.date > latest[row.client_id].date) {\n    latest[row.client_id] = row;\n  }\n}\n\nconst clients = Object.values(latest);\nconst green = clients.filter(c => c.rag_status?.includes('Green'));\nconst amber = clients.filter(c => c.rag_status?.includes('Amber'));\nconst red   = clients.filter(c => c.rag_status?.includes('Red'));\n\nconst formatClient = c =>\n  `• ${c.client_name} — ${c.total_score}/100 ${c.rag_status} | Risk: ${c.top_risk_signal}`;\n\nconst lines = [\n  `📊 *Weekly Client Health Report*`,\n  `${new Date().toDateString()}`,\n  ``,\n  `🟢 Healthy (${green.length})`,\n  ...green.map(formatClient),\n  ``,\n  `🟡 Watch (${amber.length})`,\n  ...amber.map(formatClient),\n  ``,\n  `🔴 At Risk (${red.length})`,\n  ...red.map(formatClient),\n  ``,\n  `Total clients monitored: ${clients.length}`\n];\n\nreturn [{ json: { message: lines.join('\\n') } }];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        416,
+        0
+      ],
+      "id": "5ac69351-37ab-4826-9779-818da6efb44f",
+      "name": "Code in JavaScript"
+    },
+    {
+      "parameters": {
+        "chatId": "6548373488",
+        "text": "={{ $json.message }}",
+        "additionalFields": {
+          "appendAttribution": false,
+          "parse_mode": "Markdown"
+        }
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        624,
+        0
+      ],
+      "id": "7ec9a6e5-d6c2-4d16-9501-3e77083deaef",
+      "name": "Send a text message",
+      "webhookId": "7589d55b-28c5-4f2d-973e-00ac1d15c501",
+      "credentials": {
+        "telegramApi": {
+          "id": "DiTWDBCeAJyj9Qel",
+          "name": "Telegram account 2"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Get client data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get client data": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "Send a text message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "0250e9f5-42a2-4dd1-846e-457902f7d77f",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "e2c9a93f8ff49d86192cf418d081c92e44d8bc4ec881d6e698a0353938e16a65"
+  },
+  "id": "XKGuCyxVXIxFEy04",
+  "tags": []
+}

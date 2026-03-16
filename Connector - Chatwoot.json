@@ -1,0 +1,231 @@
+{
+  "name": "Connector - Chatwoot",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "triggerAtHour": 8
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        176,
+        -32
+      ],
+      "id": "c6675d6a-91dd-4a25-88b2-2ce1605379af",
+      "name": "Schedule Trigger"
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "1m9eYezyHRwoRuTJHQqDx_fT9X58JPSeodyvReWjpsLU",
+          "mode": "list",
+          "cachedResultName": "client_health_score_mockdata",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1m9eYezyHRwoRuTJHQqDx_fT9X58JPSeodyvReWjpsLU/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 715797522,
+          "mode": "list",
+          "cachedResultName": "signals_raw",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1m9eYezyHRwoRuTJHQqDx_fT9X58JPSeodyvReWjpsLU/edit#gid=715797522"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "timestamp": "={{ $json.timestamp }}",
+            "client_id": "={{ $json.client_id }}",
+            "client_name": "={{ $json.client_name }}",
+            "signal_name": "={{ $json.signal_name }}",
+            "signal_value": "={{ $json.signal_value }}",
+            "data_source": "={{ $json.data_source }}",
+            "signal_category": "={{ $json.signal_category }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "timestamp",
+              "displayName": "timestamp",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "client_id",
+              "displayName": "client_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "client_name",
+              "displayName": "client_name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "signal_name",
+              "displayName": "signal_name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "signal_value",
+              "displayName": "signal_value",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "signal_category",
+              "displayName": "signal_category",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "data_source",
+              "displayName": "data_source",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        704,
+        -32
+      ],
+      "id": "d6324b7e-4b87-498c-8b0f-87021b630eac",
+      "name": "Update sheet",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "8o8P21qydRJ4ZVTE",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "https://docs.google.com/spreadsheets/d/1m9eYezyHRwoRuTJHQqDx_fT9X58JPSeodyvReWjpsLU/edit?gid=192353858#gid=192353858",
+          "mode": "url"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 192353858,
+          "mode": "list",
+          "cachedResultName": "client_map",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1m9eYezyHRwoRuTJHQqDx_fT9X58JPSeodyvReWjpsLU/edit#gid=192353858"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        352,
+        -32
+      ],
+      "id": "9671edcb-744e-4d44-a8c3-3d42ce3e5c0f",
+      "name": "Read Client Info",
+      "alwaysOutputData": false,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "8o8P21qydRJ4ZVTE",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const clientMap = $input.all().map(i => i.json);\n\n// Mock ticket volumes matching our three RAG bands\nconst mockTickets = {\n  'CLT_001': 1,  // Nexus Protocol — healthy, low tickets\n  'CLT_002': 4,  // DeltaFi Labs — watch, moderate tickets\n  'CLT_003': 9,  // Cipher Ventures — at risk, high tickets\n};\n\nconst results = clientMap.map(client => ({\n  json: {\n    timestamp: new Date().toISOString().replace(\"T\", \" \").slice(0, 19),\n    client_id: client.client_id,\n    client_name: client.client_name,\n    signal_name: \"support_ticket_volume\",\n    signal_value: mockTickets[client.client_id] ?? null,\n    signal_category: \"Behavioral\",\n    data_source: \"Chatwoot\"\n  }\n}));\n\nreturn results;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        528,
+        -32
+      ],
+      "id": "26a4115f-79ab-40ab-86a2-40b0b12dd647",
+      "name": "Fetch Chatwoot Data"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Read Client Info",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Client Info": {
+      "main": [
+        [
+          {
+            "node": "Fetch Chatwoot Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Chatwoot Data": {
+      "main": [
+        [
+          {
+            "node": "Update sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "da797b57-a7a9-4664-9b90-8ac4ed708e67",
+  "meta": {
+    "instanceId": "e2c9a93f8ff49d86192cf418d081c92e44d8bc4ec881d6e698a0353938e16a65"
+  },
+  "id": "SgoAt6UaDxSzCpTJ",
+  "tags": []
+}
